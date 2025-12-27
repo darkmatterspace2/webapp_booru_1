@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Post - ExtBooru</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS - CDN exposes window.supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <a href="index.html" class="logo">ExtBooru</a>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Posts</a>
+            <a href="submit.html" class="active">Upload</a>
+            <button id="theme-toggle" onclick="toggleTheme()">Theme</button>
+            <a href="login.html" id="admin-link">Login</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div class="content-column" style="max-width: 600px; margin: 0 auto;">
+            <h1>Submit New Media</h1>
+            <p style="color: var(--text-muted);">Add external links only. No uploads.</p>
+
+            <form id="submit-form">
+                <div class="form-group">
+                    <label for="source_url">Source Page URL</label>
+                    <input type="url" id="source_url" name="source_url" required
+                        placeholder="https://twitter.com/user/status/...">
+                </div>
+
+                <div class="form-group">
+                    <label for="media_url">Direct Media URL (Image/Video)</label>
+                    <input type="url" id="media_url" name="media_url" required
+                        placeholder="https://pbs.twimg.com/media/...">
+                </div>
+
+                <div class="form-group">
+                    <label for="preview_url">Preview/Thumbnail URL (Optional)</label>
+                    <input type="url" id="preview_url" name="preview_url"
+                        placeholder="https://pbs.twimg.com/media/...small.jpg">
+                </div>
+
+                <div class="form-group">
+                    <label for="tags">Tags (comma separated)</label>
+                    <input type="text" id="tags" name="tags" placeholder="cat, cute, outdoors">
+                </div>
+
+                <div class="form-group">
+                    <label for="rating">Rating</label>
+                    <select id="rating" name="rating">
+                        <option value="safe">Safe</option>
+                        <option value="questionable">Questionable</option>
+                        <option value="explicit">Explicit</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-primary"
+                    style="margin-top:10px; padding: 5px 10px; font-weight:bold;">Submit</button>
+                <div id="message" style="margin-top: 15px;"></div>
+                <pre id="debug-info"
+                    style="margin-top: 20px; font-family: monospace; font-size: 10px; color: #888; white-space: pre-wrap; background: #222; padding: 5px; border: 1px solid #444;"></pre>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const debugLog = [];
+            const debugEl = document.getElementById('debug-info');
+            function log(msg) {
+                debugLog.push(msg);
+                console.log(msg);
+                if (debugEl) debugEl.textContent = debugLog.join('\n');
+            }
+
+            log('Initializing...');
+            log(`typeof window.supabase: ${typeof window.supabase}`);
+            log(`typeof createClient: ${typeof createClient}`);
+
+            // Initialize Supabase client
+            let sbClient = null;
+
+            if (typeof CONFIG === 'undefined') {
+                log('Error: CONFIG undefined. config.js failed to load.');
+            } else if (!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE') {
+                log('Error: Config has default/missing URL.');
+            } else {
+                // CDN exposes supabase under window.supabase
+                if (window.supabase && window.supabase.createClient) {
+                    try {
+                        sbClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+                        log('Supabase client created OK.');
+                    } catch (e) {
+                        log(`Error creating client: ${e.message}`);
+                    }
+                } else {
+                    log('Error: window.supabase.createClient not found. CDN load issue.');
+                }
+            }
+
+            const form = document.getElementById('submit-form');
+            const message = document.getElementById('message');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                message.innerHTML = 'Submitting...';
+                message.className = '';
+
+                if (!sbClient) {
+                    message.innerHTML = 'Error: Supabase client not initialized.';
+                    message.className = 'error-message';
+                    return;
+                }
+
+                const formData = new FormData(form);
+                const source_url = formData.get('source_url');
+                const media_url = formData.get('media_url');
+                const preview_url = formData.get('preview_url') || media_url;
+                const rating = formData.get('rating');
+                const tagString = formData.get('tags');
+
+                // 1. Insert Post
+                const { data: post, error: postError } = await sbClient
+                    .from('webapp_booru_1_posts')
+                    .insert([{ source_url, media_url, preview_url, rating }])
+                    .select()
+                    .single();
+
+                if (postError) {
+                    console.error(postError);
+                    message.innerHTML = `Error creating post: ${postError.message}`;
+                    message.className = 'error-message';
+                    return;
+                }
+
+                // 2. Handle Tags
+                if (tagString) {
+                    const tagNames = tagString.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+
+                    for (const name of tagNames) {
+                        let { data: tag } = await sbClient.from('webapp_booru_1_tags').select('id').eq('name', name).single();
+                        let tagId = tag ? tag.id : null;
+
+                        if (!tagId) {
+                            const { data: newTag } = await sbClient.from('webapp_booru_1_tags').insert([{ name }]).select().single();
+                            if (newTag) tagId = newTag.id;
+                        }
+
+                        if (tagId) {
+                            await sbClient.from('webapp_booru_1_post_tags').insert([{ post_id: post.id, tag_id: tagId }]);
+                        }
+                    }
+                }
+
+                message.innerHTML = 'Success! Redirecting...';
+                message.style.color = 'lightgreen';
+
+                setTimeout(() => {
+                    window.location.href = `post.html?id=${post.id}`;
+                }, 1000);
+            });
+        });
+    </script>
+
+</body>
+
+</html>

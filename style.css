@@ -1,0 +1,245 @@
+/* Retro Booru Style (Rule34/Gelbooru inspired) */
+/* Default: Dark Mode */
+
+:root {
+  /* Dark Theme (Default) */
+  --bg-color: #1f1f1f;
+  --sidebar-bg: #2a2a2a;
+  --border-color: #444;
+  --text-main: #e0e0e0;
+  --text-muted: #aaa;
+  --link-color: #8ab4f8;
+  --link-hover: #ffffff;
+  --header-bg: #333;
+  --header-text: #ffffff;
+  --nav-bg: #222;
+  --input-bg: #333;
+  --input-border: #555;
+  --button-bg: #444;
+  --button-text: #fff;
+}
+
+/* Light Mode Overrides */
+body.light-mode {
+  --bg-color: #e3e6e8;
+  --sidebar-bg: #f2f4f6;
+  --border-color: #b7c5d9;
+  --text-main: #000000;
+  --text-muted: #666;
+  --link-color: #006fea;
+  --link-hover: #e00;
+  --header-bg: #0066cc;
+  --header-text: #ffffff;
+  --nav-bg: #b4cbe4;
+  --input-bg: #fff;
+  --input-border: #7f9db9;
+  --button-bg: #e0e0e0;
+  --button-text: #000;
+}
+
+body {
+  margin: 0;
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* Header */
+header {
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: 5px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: var(--text-main);
+  /* Adapted for dark mode visibility */
+}
+
+body.light-mode .logo {
+  color: #000;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+}
+
+.nav-links a {
+  margin-left: 10px;
+  font-weight: bold;
+}
+
+/* Theme Toggle Button */
+#theme-toggle {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  cursor: pointer;
+  margin-left: 15px;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+/* Layout - Two Column */
+.container {
+  display: flex;
+  min-height: calc(100vh - 40px);
+}
+
+.sidebar-column {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 10px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+}
+
+.content-column {
+  flex-grow: 1;
+  padding: 10px;
+}
+
+/* Sidebar Elements */
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-header {
+  font-weight: bold;
+  margin-bottom: 5px;
+  border-bottom: 1px dotted var(--text-muted);
+  padding-bottom: 2px;
+  display: block;
+  color: var(--text-muted);
+}
+
+.form-group {
+  margin-bottom: 5px;
+}
+
+input[type="text"],
+input[type="url"],
+select {
+  width: 100%;
+  font-size: 11px;
+  padding: 2px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-main);
+}
+
+button {
+  font-size: 11px;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+/* Thumbnails Grid */
+.thumb-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.post-thumb {
+  border: 1px solid transparent;
+  display: inline-block;
+  text-align: center;
+}
+
+.post-thumb img,
+.post-thumb video {
+  max-width: 150px;
+  max-height: 150px;
+  border: 1px solid var(--border-color);
+}
+
+.post-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.light-mode .post-thumb:hover {
+  background-color: #f0f0f0;
+}
+
+/* Post Detail */
+.post-media-view {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.post-media-view img,
+.post-media-view video {
+  max-width: 100%;
+  border: 2px solid var(--border-color);
+}
+
+/* Tags List */
+.tag-list li {
+  list-style: none;
+  margin-bottom: 2px;
+}
+
+/* Tag Colors - Adjusted for Dark Mode readability */
+.tag-type-general {
+  color: #8ab4f8;
+}
+
+.tag-type-artist {
+  color: #f28b82;
+}
+
+.tag-type-copyright {
+  color: #d7aefb;
+}
+
+.tag-type-character {
+  color: #81c995;
+}
+
+body.light-mode .tag-type-general {
+  color: #006fea;
+}
+
+body.light-mode .tag-type-artist {
+  color: #a00;
+}
+
+body.light-mode .tag-type-copyright {
+  color: #d0d;
+}
+
+body.light-mode .tag-type-character {
+  color: #0a0;
+}
+
+ul {
+  padding-left: 0;
+  margin: 0;
+}
+
+/* Submenu/Link list in sidebar */
+.link-list a {
+  display: block;
+  margin-bottom: 2px;
+}

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - ExtBooru</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <a href="index.html" class="logo">ExtBooru</a>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Posts</a>
+            <a href="submit.html">Upload</a>
+            <button id="theme-toggle" onclick="toggleTheme()">Theme</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div class="content-column" style="max-width: 400px; margin: 50px auto;">
+            <h1>Admin Login</h1>
+
+            <div id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="admin@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Password">
+                </div>
+                <button id="login-btn" style="margin-top:10px; padding: 5px 15px;">Login</button>
+                <p id="login-msg" style="margin-top:10px;"></p>
+            </div>
+
+            <div id="logged-in" style="display:none;">
+                <p>Logged in as: <strong id="user-email"></strong></p>
+                <button id="logout-btn" style="padding: 5px 15px;">Logout</button>
+                <p style="margin-top:20px;"><a href="index.html">← Back to Posts</a></p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loginForm = document.getElementById('login-form');
+            const loggedIn = document.getElementById('logged-in');
+            const loginBtn = document.getElementById('login-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const loginMsg = document.getElementById('login-msg');
+            const userEmail = document.getElementById('user-email');
+
+            // Check if already logged in
+            await checkAuthStatus();
+
+            if (isAdmin()) {
+                loginForm.style.display = 'none';
+                loggedIn.style.display = 'block';
+                userEmail.textContent = currentUser.email;
+            }
+
+            // Login handler
+            loginBtn.addEventListener('click', async () => {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                if (!email || !password) {
+                    loginMsg.textContent = 'Please enter email and password.';
+                    loginMsg.style.color = 'orange';
+                    return;
+                }
+
+                loginMsg.textContent = 'Logging in...';
+                loginMsg.style.color = 'inherit';
+
+                const { data, error } = await adminLogin(email, password);
+
+                if (error) {
+                    loginMsg.textContent = 'Error: ' + error.message;
+                    loginMsg.style.color = 'red';
+                } else {
+                    loginMsg.textContent = 'Success! Redirecting...';
+                    loginMsg.style.color = 'lightgreen';
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
+                }
+            });
+
+            // Logout handler
+            logoutBtn.addEventListener('click', async () => {
+                await adminLogout();
+                location.reload();
+            });
+
+            // Enter key to submit
+            document.getElementById('password').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') loginBtn.click();
+            });
+        });
+    </script>
+
+</body>
+
+</html>

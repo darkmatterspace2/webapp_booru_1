@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post - ExtBooru</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <a href="index.html" class="logo">ExtBooru</a>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Posts</a>
+            <a href="submit.html">Upload</a>
+            <button id="theme-toggle" onclick="toggleTheme()">Theme</button>
+            <a href="login.html" id="admin-link">Login</a>
+        </nav>
+    </header>
+
+    <div class="container" id="post-detail-container">
+        <!-- Sidebar -->
+        <aside class="sidebar-column">
+            <div class="sidebar-section">
+                <span class="sidebar-header">Tags</span>
+                <ul id="tag-list" class="tag-list">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+
+            <div class="sidebar-section">
+                <span class="sidebar-header">Statistics</span>
+                <ul class="link-list" id="stats-list">
+                    <li>Id: <span id="stat-id">...</span></li>
+                    <li>Posted: <span id="stat-date">...</span></li>
+                    <li>Size: <span id="stat-size">?x?</span></li>
+                    <li>Source: <a href="#" id="stat-source" target="_blank">Link</a></li>
+                    <li>Rating: <span id="stat-rating">...</span></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-section">
+                <span class="sidebar-header">Options</span>
+                <ul class="link-list">
+                    <li><a href="#" onclick="history.back()">Back</a></li>
+                    <li id="edit-item" style="display:none;"><a href="#" id="edit-btn">Edit</a></li>
+                    <li id="delete-item" style="display:none;"><a href="#" id="delete-btn"
+                            style="color:#f44;">Delete</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content-column">
+            <div id="media-view" class="post-media-view">
+                <!-- Image injected here -->
+            </div>
+
+            <!-- Edit Form (hidden by default) -->
+            <div id="edit-form"
+                style="display:none; margin-top: 20px; padding: 10px; border: 1px solid var(--border-color); background: var(--sidebar-bg);">
+                <h3>Edit Post</h3>
+                <div class="form-group">
+                    <label for="edit-source">Source URL</label>
+                    <input type="url" id="edit-source">
+                </div>
+                <div class="form-group">
+                    <label for="edit-media">Media URL</label>
+                    <input type="url" id="edit-media">
+                </div>
+                <div class="form-group">
+                    <label for="edit-preview">Preview URL</label>
+                    <input type="url" id="edit-preview">
+                </div>
+                <div class="form-group">
+                    <label for="edit-rating">Rating</label>
+                    <select id="edit-rating">
+                        <option value="safe">Safe</option>
+                        <option value="questionable">Questionable</option>
+                        <option value="explicit">Explicit</option>
+                    </select>
+                </div>
+                <button onclick="saveEdit()" style="margin-right:5px;">Save</button>
+                <button onclick="cancelEdit()">Cancel</button>
+                <span id="edit-msg" style="margin-left:10px;"></span>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentPost = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth status
+            await checkAuthStatus();
+
+            const adminLink = document.getElementById('admin-link');
+            if (isAdmin()) {
+                adminLink.textContent = 'Logout';
+                adminLink.href = '#';
+                adminLink.onclick = async (e) => {
+                    e.preventDefault();
+                    await adminLogout();
+                    location.reload();
+                };
+                // Show admin options
+                document.getElementById('edit-item').style.display = 'block';
+                document.getElementById('delete-item').style.display = 'block';
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+
+            if (!id || typeof fetchPostById !== 'function') return;
+
+            const { data: post, error } = await fetchPostById(id);
+
+            if (error || !post) {
+                document.querySelector('.content-column').innerHTML = 'Error loading post.';
+                return;
+            }
+
+            currentPost = post;
+
+            // Populate Stats
+            document.title = `Post #${post.id} - ExtBooru`;
+            document.getElementById('stat-id').textContent = post.id;
+            document.getElementById('stat-date').textContent = new Date(post.created_at).toLocaleDateString();
+            document.getElementById('stat-size').textContent = `${post.width || '?'}x${post.height || '?'}`;
+            document.getElementById('stat-source').href = post.source_url;
+            document.getElementById('stat-rating').textContent = post.rating;
+
+            // Populate Tags
+            const tagList = document.getElementById('tag-list');
+            if (post.tags && post.tags.length > 0) {
+                tagList.innerHTML = post.tags.map(t =>
+                    `<li><a href="index.html?tag=${encodeURIComponent(t.name)}" class="tag-type-${t.type || 'general'}">${t.name}</a></li>`
+                ).join('');
+            } else {
+                tagList.innerHTML = '<li>No tags</li>';
+            }
+
+            // Populate Media
+            const mediaView = document.getElementById('media-view');
+            const isVideo = post.media_url.match(/\.(mp4|webm|mov)$/i);
+            if (isVideo) {
+                mediaView.innerHTML = `
+                    <video controls loop autoplay name="media">
+                        <source src="${post.media_url}">
+                    </video>
+                    <p style="font-size:10px;">Note: Video content is external.</p>
+                `;
+            } else {
+                mediaView.innerHTML = `<img src="${post.media_url}" alt="Post image">`;
+            }
+
+            // Setup edit button (only if admin)
+            if (isAdmin()) {
+                document.getElementById('edit-btn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showEditForm();
+                });
+
+                document.getElementById('delete-btn').addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    if (confirm('Are you sure you want to delete this post?')) {
+                        const { error } = await deletePost(post.id);
+                        if (error) {
+                            alert('Error deleting: ' + error.message);
+                        } else {
+                            alert('Deleted!');
+                            window.location.href = 'index.html';
+                        }
+                    }
+                });
+            }
+        });
+
+        function showEditForm() {
+            if (!currentPost) return;
+            document.getElementById('edit-source').value = currentPost.source_url || '';
+            document.getElementById('edit-media').value = currentPost.media_url || '';
+            document.getElementById('edit-preview').value = currentPost.preview_url || '';
+            document.getElementById('edit-rating').value = currentPost.rating || 'safe';
+            document.getElementById('edit-form').style.display = 'block';
+        }
+
+        function cancelEdit() {
+            document.getElementById('edit-form').style.display = 'none';
+        }
+
+        async function saveEdit() {
+            if (!currentPost) return;
+            const msg = document.getElementById('edit-msg');
+            msg.textContent = 'Saving...';
+
+            const updates = {
+                source_url: document.getElementById('edit-source').value,
+                media_url: document.getElementById('edit-media').value,
+                preview_url: document.getElementById('edit-preview').value || null,
+                rating: document.getElementById('edit-rating').value
+            };
+
+            const { data, error } = await updatePost(currentPost.id, updates);
+
+            if (error) {
+                msg.textContent = 'Error: ' + error.message;
+                msg.style.color = 'red';
+            } else {
+                msg.textContent = 'Saved! Reloading...';
+                msg.style.color = 'lightgreen';
+                setTimeout(() => location.reload(), 1000);
+            }
+        }
+    </script>
+
+</body>
+
+</html>

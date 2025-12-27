@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>External Booru</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <a href="index.html" class="logo">ExtBooru</a>
+            <span style="font-size: 0.8em; margin-left: 10px;">Served 0.001s</span>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Posts</a>
+            <a href="submit.html">Upload</a>
+            <button id="theme-toggle" onclick="toggleTheme()">Theme</button>
+            <a href="login.html" id="admin-link">Login</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar-column">
+            <div class="sidebar-section">
+                <span class="sidebar-header">Search</span>
+                <input type="text" id="search" placeholder="Search tags...">
+                <br>
+                <button
+                    onclick="document.getElementById('search').dispatchEvent(new KeyboardEvent('keypress',{'key':'Enter'}))"
+                    style="margin-top:2px;">Search</button>
+            </div>
+
+            <div class="sidebar-section">
+                <span class="sidebar-header">Tags</span>
+                <ul id="tag-sidebar" class="link-list">
+                    <li><a href="#">Loading...</a></li>
+                </ul>
+            </div>
+
+            <!-- Options section (Admin only) -->
+            <div class="sidebar-section" id="options-section" style="display:none;">
+                <span class="sidebar-header">Options</span>
+                <label style="display:block; margin:2px 0;"><input type="checkbox" id="filter-safe" checked>
+                    Safe</label>
+                <label style="display:block; margin:2px 0;"><input type="checkbox" id="filter-questionable">
+                    Questionable</label>
+                <label style="display:block; margin:2px 0;"><input type="checkbox" id="filter-explicit">
+                    Explicit</label>
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content-column">
+            <div id="grid" class="thumb-grid">
+                <!-- Posts injected here -->
+                <p>Loading posts...</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth and update login link
+            await checkAuthStatus();
+            const adminLink = document.getElementById('admin-link');
+            const optionsSection = document.getElementById('options-section');
+
+            if (isAdmin()) {
+                adminLink.textContent = 'Logout';
+                adminLink.href = '#';
+                adminLink.onclick = async (e) => {
+                    e.preventDefault();
+                    await adminLogout();
+                    location.reload();
+                };
+
+                // Show options section for admins
+                optionsSection.style.display = 'block';
+            }
+        });
+    </script>
+
+</body>
+
+</html>
