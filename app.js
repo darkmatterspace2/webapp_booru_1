@@ -183,7 +183,10 @@ function renderPostGrid(posts, container) {
 
     const fragment = document.createDocumentFragment();
 
-    posts.forEach(post => {
+    // Store posts for lightbox navigation
+    const mediaList = posts.map(p => ({ url: p.media_url, id: p.id }));
+
+    posts.forEach((post, index) => {
         const span = document.createElement('span');
         span.className = 'post-thumb';
 
@@ -194,22 +197,29 @@ function renderPostGrid(posts, container) {
         let mediaHtml;
 
         if (hasPreview) {
-            // Use provided preview image
-            mediaHtml = `<img src="${post.preview_url}" alt="${post.id}" title="${tagTitle}">`;
+            mediaHtml = `<img src="${post.preview_url}" alt="${post.id}">`;
         } else if (isVideo) {
-            // No preview for video - show a small muted video element (browser will show first frame)
             mediaHtml = `
-                <video muted preload="metadata" title="${tagTitle}" style="pointer-events:none;">
+                <video muted preload="none" style="pointer-events:none;">
                     <source src="${post.media_url}">
                 </video>
                 <span class="video-badge">▶</span>
             `;
         } else {
-            // Regular image
-            mediaHtml = `<img src="${post.media_url}" alt="${post.id}" title="${tagTitle}">`;
+            mediaHtml = `<img src="${post.media_url}" alt="${post.id}">`;
         }
 
-        span.innerHTML = `<a href="post.html?id=${post.id}">${mediaHtml}</a>`;
+        // Add caption overlay
+        const caption = tagTitle || `Post #${post.id}`;
+        span.innerHTML = `${mediaHtml}<span class="thumb-caption">${caption}</span>`;
+
+        // Open lightbox on click
+        span.addEventListener('click', () => {
+            if (typeof Lightbox !== 'undefined') {
+                Lightbox.open(post.media_url, post.id, mediaList, index);
+            }
+        });
+
         fragment.appendChild(span);
     });
 
@@ -261,11 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return ratings.length > 0 ? ratings : ['safe'];
         }
 
-        // Initial Load
-        loadPosts();
-        loadTags();
-
-        // Load tags for sidebar
+        // Load tags for sidebar - tags use click handlers to capture current rating state
         async function loadTags() {
             if (!tagSidebar) return;
             const { data: tags, error } = await fetchTags();
@@ -273,18 +279,52 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tagSidebar.innerHTML = '<li>No tags yet</li>';
                 return;
             }
-            tagSidebar.innerHTML = tags.map(t =>
-                `<li><a href="?tag=${encodeURIComponent(t.name)}" class="tag-type-${t.type || 'general'}">${t.name}</a></li>`
-            ).join('');
+
+            tagSidebar.innerHTML = '';
+            tags.forEach(t => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = `tag-type-${t.type || 'general'}`;
+                a.textContent = t.name;
+
+                // Use click handler to capture current rating state at click time
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const ratings = getSelectedRatings();
+                    const params = new URLSearchParams();
+                    params.set('tag', t.name);
+                    // Include rating param if not just 'safe'
+                    if (ratings.length > 0 && (!ratings.includes('safe') || ratings.length > 1)) {
+                        params.set('rating', ratings.join(','));
+                    }
+                    window.location.href = `?${params.toString()}`;
+                });
+
+                li.appendChild(a);
+                tagSidebar.appendChild(li);
+            });
         }
 
-        // Rating filter change handlers
+        // Rating filter change handlers - update URL when changed
+        function updateUrl() {
+            const tag = searchInput ? searchInput.value.trim() : null;
+            const ratings = getSelectedRatings();
+
+            const params = new URLSearchParams();
+            if (tag) params.set('tag', tag);
+            if (ratings.length > 0 && !ratings.includes('safe') || ratings.length > 1) {
+                params.set('rating', ratings.join(','));
+            }
+
+            const newUrl = params.toString() ? `?${params.toString()}` : 'index.html';
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+            loadPosts(tag || null);
+        }
+
         [filterSafe, filterQuestionable, filterExplicit].forEach(el => {
             if (el) {
-                el.addEventListener('change', () => {
-                    const tag = searchInput ? searchInput.value.trim() : null;
-                    loadPosts(tag || null);
-                });
+                el.addEventListener('change', updateUrl);
             }
         });
 
@@ -292,19 +332,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (searchInput) {
             searchInput.disabled = false;
 
+            // Wait for auth to complete before processing rating params
+            await checkAuthStatus();
+
+            // Read URL params
             const params = getUrlParams();
             const tagParam = params.get('tag');
+            const ratingParam = params.get('rating');
+
+            // Apply rating filters from URL (only for admins)
+            if (ratingParam && isAdmin()) {
+                const ratings = ratingParam.split(',');
+                if (filterSafe) filterSafe.checked = ratings.includes('safe');
+                if (filterQuestionable) filterQuestionable.checked = ratings.includes('questionable');
+                if (filterExplicit) filterExplicit.checked = ratings.includes('explicit');
+            }
+
             if (tagParam) {
                 searchInput.value = tagParam;
-                loadPosts(tagParam);
             }
+
+            // Load tags after auth check (so getSelectedRatings works correctly)
+            loadTags();
+
+            // Initial load (now with correct rating state)
+            loadPosts(tagParam || null);
 
             searchInput.addEventListener('keypress', async (e) => {
                 if (e.key === 'Enter') {
-                    const tag = searchInput.value.trim();
-                    const newUrl = tag ? `?tag=${encodeURIComponent(tag)}` : 'index.html';
-                    window.history.pushState({ path: newUrl }, '', newUrl);
-                    loadPosts(tag);
+                    updateUrl();
                 }
             });
         }

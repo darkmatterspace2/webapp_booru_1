@@ -243,3 +243,228 @@ ul {
   display: block;
   margin-bottom: 2px;
 }
+
+/* ===== GALLERY WITH VARIABLE COLUMNS ===== */
+.thumb-grid {
+  --gallery-cols: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.post-thumb {
+  width: calc(100% / var(--gallery-cols));
+  box-sizing: border-box;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.post-thumb img,
+.post-thumb video {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: none;
+  max-width: none;
+  max-height: none;
+}
+
+.post-thumb:hover {
+  opacity: 0.85;
+  background-color: transparent;
+}
+
+/* Caption overlay on hover */
+.post-thumb .thumb-caption {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  padding: 3px 5px;
+  transition: top 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-thumb:hover .thumb-caption {
+  top: 0;
+}
+
+/* Responsive columns */
+@media (max-width: 900px) {
+  .thumb-grid {
+    --gallery-cols: 3;
+  }
+}
+
+@media (max-width: 600px) {
+  .thumb-grid {
+    --gallery-cols: 2;
+  }
+}
+
+@media (max-width: 400px) {
+  .thumb-grid {
+    --gallery-cols: 1;
+  }
+}
+
+/* ===== LIGHTBOX ===== */
+#lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#lightbox-overlay.active {
+  display: flex;
+}
+
+.lightbox-media-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: auto;
+  cursor: grab;
+}
+
+.lightbox-media-container.scrollable {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.lightbox-content {
+  max-width: 100%;
+  max-height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* View Modes */
+.lightbox-content.mode-fit {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.lightbox-content.mode-full {
+  max-width: none;
+  max-height: none;
+}
+
+.lightbox-content.mode-crop {
+  min-width: 100vw;
+  min-height: 100vh;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+}
+
+.lightbox-content.mode-stretch {
+  width: 100vw;
+  height: 100vh;
+  object-fit: fill;
+}
+
+/* Toolbar */
+.lightbox-toolbar {
+  position: absolute;
+  bottom: 60px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 8px 15px;
+  border-radius: 5px;
+  display: flex;
+  gap: 8px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.lightbox-toolbar:hover {
+  opacity: 1;
+}
+
+.lightbox-toolbar button {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.lightbox-toolbar button:hover {
+  background: #555;
+}
+
+.lightbox-toolbar button.active {
+  background: #006fea;
+  border-color: #006fea;
+}
+
+.lightbox-divider {
+  color: #555;
+  padding: 0 5px;
+}
+
+.lightbox-counter {
+  position: absolute;
+  bottom: 20px;
+  color: #888;
+  font-size: 12px;
+}
+
+/* ===== FLOATING GALLERY CONTROLS - ROCKER STYLE ===== */
+#gallery-float-controls {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 5px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+  z-index: 100;
+}
+
+#gallery-float-controls:hover {
+  opacity: 1;
+}
+
+#gallery-float-controls button {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+#gallery-float-controls button:hover {
+  background: #555;
+}
+
+#gallery-float-controls button:active {
+  background: #006fea;
+}

@@ -152,7 +152,7 @@
             const isVideo = post.media_url.match(/\.(mp4|webm|mov)$/i);
             if (isVideo) {
                 mediaView.innerHTML = `
-                    <video controls loop autoplay name="media">
+                    <video controls loop preload="none" name="media">
                         <source src="${post.media_url}">
                     </video>
                     <p style="font-size:10px;">Note: Video content is external.</p>
