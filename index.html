@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="app.js" defer></script>
+    <script src="lightbox.js" defer></script>
 </head>
 
 <body>
@@ -84,6 +85,20 @@
 
                 // Show options section for admins
                 optionsSection.style.display = 'block';
+
+                // Apply rating filters from URL (after auth is confirmed)
+                const params = new URLSearchParams(window.location.search);
+                const ratingParam = params.get('rating');
+                if (ratingParam) {
+                    const ratings = ratingParam.split(',');
+                    const filterSafe = document.getElementById('filter-safe');
+                    const filterQuestionable = document.getElementById('filter-questionable');
+                    const filterExplicit = document.getElementById('filter-explicit');
+
+                    if (filterSafe) filterSafe.checked = ratings.includes('safe');
+                    if (filterQuestionable) filterQuestionable.checked = ratings.includes('questionable');
+                    if (filterExplicit) filterExplicit.checked = ratings.includes('explicit');
+                }
             }
         });
     </script>
