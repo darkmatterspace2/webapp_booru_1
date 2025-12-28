@@ -70,7 +70,11 @@ https://example.com/video.mp4"></textarea>
 
                 <div class="form-group">
                     <label for="tags">Tags (comma separated)</label>
-                    <input type="text" id="tags" name="tags" required placeholder="cat, cute, outdoors">
+                    <div style="position: relative;">
+                        <input type="text" id="tags" name="tags" required placeholder="cat, cute, outdoors"
+                            autocomplete="off">
+                        <ul id="tag-suggestions" class="autocomplete-dropdown"></ul>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -138,6 +142,93 @@ https://example.com/video.mp4"></textarea>
                 const isBulk = bulkModeCheckbox.checked;
                 singleMediaGroup.style.display = isBulk ? 'none' : 'block';
                 bulkMediaGroup.style.display = isBulk ? 'block' : 'none';
+            });
+
+            // --- Tag Autocomplete ---
+            const tagsInput = document.getElementById('tags');
+            const tagSuggestions = document.getElementById('tag-suggestions');
+            let selectedIndex = -1;
+            let debounceTimer = null;
+
+            async function searchTags(query, limit = 10) {
+                if (!sbClient || !query || query.length < 2) return [];
+                const { data } = await sbClient
+                    .from('webapp_booru_1_tags')
+                    .select('id, name')
+                    .ilike('name', `${query}%`)
+                    .limit(limit);
+                return data || [];
+            }
+
+            function getLastWord(text) {
+                const words = text.split(',');
+                return (words[words.length - 1] || '').trim();
+            }
+
+            function replaceLastWord(text, newWord) {
+                const words = text.split(',');
+                words[words.length - 1] = ' ' + newWord;
+                return words.join(',').replace(/^,\s*/, '');
+            }
+
+            async function showTagSuggestions() {
+                const lastWord = getLastWord(tagsInput.value);
+                if (!lastWord || lastWord.length < 2) {
+                    tagSuggestions.classList.remove('active');
+                    return;
+                }
+                const tags = await searchTags(lastWord);
+                if (tags.length === 0) {
+                    tagSuggestions.classList.remove('active');
+                    return;
+                }
+                tagSuggestions.innerHTML = tags.map((t, i) =>
+                    `<li data-tag="${t.name}" class="${i === selectedIndex ? 'selected' : ''}">${t.name}</li>`
+                ).join('');
+                tagSuggestions.classList.add('active');
+                selectedIndex = -1;
+            }
+
+            function selectTagSuggestion(tagName) {
+                tagsInput.value = replaceLastWord(tagsInput.value, tagName) + ', ';
+                tagSuggestions.classList.remove('active');
+                tagsInput.focus();
+            }
+
+            tagsInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(showTagSuggestions, 200);
+            });
+
+            tagSuggestions.addEventListener('click', (e) => {
+                if (e.target.tagName === 'LI') {
+                    selectTagSuggestion(e.target.dataset.tag);
+                }
+            });
+
+            tagsInput.addEventListener('keydown', (e) => {
+                if (!tagSuggestions.classList.contains('active')) return;
+                const items = tagSuggestions.querySelectorAll('li');
+                if (items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                    e.preventDefault();
+                    selectTagSuggestion(items[selectedIndex].dataset.tag);
+                } else if (e.key === 'Escape') {
+                    tagSuggestions.classList.remove('active');
+                }
+            });
+
+            tagsInput.addEventListener('blur', () => {
+                setTimeout(() => tagSuggestions.classList.remove('active'), 150);
             });
 
             // Helper function to create a single post with tags
