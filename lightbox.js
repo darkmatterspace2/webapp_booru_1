@@ -26,6 +26,7 @@ const Lightbox = (function () {
                 <button id="lightbox-next" title="Next">▶</button>
                 <span class="lightbox-divider">|</span>
                 <button id="lightbox-info" title="View post details">Info</button>
+                <button id="lightbox-fullscreen" title="Toggle Fullscreen">⛶</button>
                 <button id="lightbox-close" title="Close (Esc)">✕</button>
             </div>
             <div class="lightbox-counter" id="lightbox-counter">1 / 1</div>
@@ -51,6 +52,7 @@ const Lightbox = (function () {
         document.getElementById('lightbox-prev').addEventListener('click', () => navigate(-1));
         document.getElementById('lightbox-next').addEventListener('click', () => navigate(1));
         document.getElementById('lightbox-info').addEventListener('click', goToPost);
+        document.getElementById('lightbox-fullscreen').addEventListener('click', toggleFullscreen);
 
         // Mode buttons
         toolbar.querySelectorAll('[data-mode]').forEach(btn => {
@@ -216,6 +218,18 @@ const Lightbox = (function () {
         translateY = 0;
         const content = mediaContainer.querySelector('.lightbox-content');
         if (content) content.style.transform = '';
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((e) => {
+                console.error(`Error attempting to enable fullscreen mode: ${e.message} (${e.name})`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
     }
 
     // Initialize on DOM ready

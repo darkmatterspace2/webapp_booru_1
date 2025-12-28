@@ -539,3 +539,24 @@ body.zen-mode .content-column {
   color: var(--text-muted);
   font-size: 10px;
 }
+
+/* ===== MOBILE LIGHTBOX TOOLBAR ===== */
+@media (max-width: 600px) {
+  .lightbox-toolbar {
+    max-width: 95%;
+    overflow-x: auto;
+    white-space: nowrap;
+    justify-content: flex-start;
+    padding: 8px 10px;
+    gap: 10px;
+    /* Smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .lightbox-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+}
