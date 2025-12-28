@@ -468,3 +468,22 @@ ul {
 #gallery-float-controls button:active {
   background: #006fea;
 }
+
+#gallery-float-controls button.active {
+  background: #006fea;
+  border-color: #006fea;
+}
+
+/* ===== ZEN MODE ===== */
+body.zen-mode header,
+body.zen-mode .sidebar-column {
+  display: none !important;
+}
+
+body.zen-mode .container {
+  min-height: 100vh;
+}
+
+body.zen-mode .content-column {
+  width: 100%;
+}

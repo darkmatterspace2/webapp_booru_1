@@ -242,14 +242,23 @@ const GalleryControls = (function () {
         controlsEl = document.createElement('div');
         controlsEl.id = 'gallery-float-controls';
         controlsEl.innerHTML = `
+            <button id="zen-toggle" title="Toggle Zen mode">☯</button>
             <button id="cols-plus" title="More columns">+</button>
             <button id="cols-minus" title="Fewer columns">−</button>
+            <button id="go-to-top" title="Go to top">↑</button>
         `;
         document.body.appendChild(controlsEl);
 
-        // Load saved preference
+        // Load saved preferences
         currentCols = parseInt(localStorage.getItem(STORAGE_KEY)) || 4;
         setColumns(currentCols);
+
+        // Load zen mode state
+        const zenEnabled = localStorage.getItem('zen_mode') === 'true';
+        if (zenEnabled) {
+            document.body.classList.add('zen-mode');
+            document.getElementById('zen-toggle').classList.add('active');
+        }
 
         // Event listeners
         document.getElementById('cols-plus').addEventListener('click', () => {
@@ -266,6 +275,16 @@ const GalleryControls = (function () {
                 setColumns(currentCols);
                 localStorage.setItem(STORAGE_KEY, currentCols);
             }
+        });
+
+        document.getElementById('go-to-top').addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        document.getElementById('zen-toggle').addEventListener('click', () => {
+            const isZen = document.body.classList.toggle('zen-mode');
+            document.getElementById('zen-toggle').classList.toggle('active', isZen);
+            localStorage.setItem('zen_mode', isZen);
         });
     }
 
