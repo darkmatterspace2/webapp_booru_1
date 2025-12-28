@@ -87,6 +87,10 @@
                         <option value="explicit">Explicit</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="edit-tags">Tags (comma separated)</label>
+                    <input type="text" id="edit-tags" placeholder="tag1, tag2, tag3">
+                </div>
                 <button onclick="saveEdit()" style="margin-right:5px;">Save</button>
                 <button onclick="cancelEdit()">Cancel</button>
                 <span id="edit-msg" style="margin-left:10px;"></span>
@@ -189,6 +193,9 @@
             document.getElementById('edit-media').value = currentPost.media_url || '';
             document.getElementById('edit-preview').value = currentPost.preview_url || '';
             document.getElementById('edit-rating').value = currentPost.rating || 'safe';
+            // Populate current tags
+            const currentTags = currentPost.tags ? currentPost.tags.map(t => t.name).join(', ') : '';
+            document.getElementById('edit-tags').value = currentTags;
             document.getElementById('edit-form').style.display = 'block';
         }
 
@@ -196,10 +203,26 @@
             document.getElementById('edit-form').style.display = 'none';
         }
 
+        // Get Supabase client reference
+        function getSupabaseClient() {
+            if (window.supabase && window.supabase.createClient && typeof CONFIG !== 'undefined') {
+                return window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+            }
+            return null;
+        }
+
         async function saveEdit() {
             if (!currentPost) return;
             const msg = document.getElementById('edit-msg');
             msg.textContent = 'Saving...';
+            msg.style.color = '';
+
+            const sbClient = getSupabaseClient();
+            if (!sbClient) {
+                msg.textContent = 'Error: Supabase not initialized';
+                msg.style.color = 'red';
+                return;
+            }
 
             const updates = {
                 source_url: document.getElementById('edit-source').value,
@@ -208,15 +231,73 @@
                 rating: document.getElementById('edit-rating').value
             };
 
+            // Update post basic fields
             const { data, error } = await updatePost(currentPost.id, updates);
 
             if (error) {
                 msg.textContent = 'Error: ' + error.message;
                 msg.style.color = 'red';
-            } else {
+                return;
+            }
+
+            // Handle tags update
+            const tagString = document.getElementById('edit-tags').value;
+
+            // Sanitize tags: trim, lowercase, spaces to underscores, strip special chars
+            function sanitizeTag(tag) {
+                return tag
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, '_')
+                    .replace(/[^a-z0-9_-]/g, '');
+            }
+
+            const newTagNames = tagString.split(',')
+                .map(t => sanitizeTag(t))
+                .filter(t => t.length > 0);
+
+            try {
+                // Remove existing tag associations for this post
+                await sbClient
+                    .from('webapp_booru_1_post_tags')
+                    .delete()
+                    .eq('post_id', currentPost.id);
+
+                // Add new tag associations
+                for (const name of newTagNames) {
+                    // Check if tag exists
+                    let { data: tag } = await sbClient
+                        .from('webapp_booru_1_tags')
+                        .select('id')
+                        .eq('name', name)
+                        .single();
+
+                    let tagId = tag ? tag.id : null;
+
+                    // Create tag if it doesn't exist
+                    if (!tagId) {
+                        const { data: newTag } = await sbClient
+                            .from('webapp_booru_1_tags')
+                            .insert([{ name }])
+                            .select()
+                            .single();
+                        if (newTag) tagId = newTag.id;
+                    }
+
+                    // Create post-tag association
+                    if (tagId) {
+                        await sbClient
+                            .from('webapp_booru_1_post_tags')
+                            .insert([{ post_id: currentPost.id, tag_id: tagId }]);
+                    }
+                }
+
                 msg.textContent = 'Saved! Reloading...';
                 msg.style.color = 'lightgreen';
                 setTimeout(() => location.reload(), 1000);
+            } catch (tagError) {
+                msg.textContent = 'Post saved, but tag update failed: ' + tagError.message;
+                msg.style.color = 'orange';
             }
         }
     </script>

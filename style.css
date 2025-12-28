@@ -468,3 +468,67 @@ ul {
 #gallery-float-controls button:active {
   background: #006fea;
 }
+
+#gallery-float-controls button.active {
+  background: #006fea;
+  border-color: #006fea;
+}
+
+/* ===== ZEN MODE ===== */
+body.zen-mode header,
+body.zen-mode .sidebar-column {
+  display: none !important;
+}
+
+body.zen-mode .container {
+  min-height: 100vh;
+}
+
+body.zen-mode .content-column {
+  width: 100%;
+}
+
+/* ===== AUTOCOMPLETE DROPDOWN ===== */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.autocomplete-dropdown.active {
+  display: block;
+}
+
+.autocomplete-dropdown li {
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.autocomplete-dropdown li:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-dropdown li:hover,
+.autocomplete-dropdown li.selected {
+  background: var(--link-color);
+  color: #fff;
+}
+
+.autocomplete-dropdown li .tag-count {
+  float: right;
+  color: var(--text-muted);
+  font-size: 10px;
+}

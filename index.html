@@ -32,7 +32,10 @@
         <aside class="sidebar-column">
             <div class="sidebar-section">
                 <span class="sidebar-header">Search</span>
-                <input type="text" id="search" placeholder="Search tags...">
+                <div style="position: relative;">
+                    <input type="text" id="search" placeholder="Search tags..." autocomplete="off">
+                    <ul id="search-suggestions" class="autocomplete-dropdown"></ul>
+                </div>
                 <br>
                 <button
                     onclick="document.getElementById('search').dispatchEvent(new KeyboardEvent('keypress',{'key':'Enter'}))"
@@ -63,6 +66,12 @@
             <div id="grid" class="thumb-grid">
                 <!-- Posts injected here -->
                 <p>Loading posts...</p>
+            </div>
+            <!-- Pagination -->
+            <div id="pagination" style="text-align: center; padding: 15px; margin-top: 10px;">
+                <button id="prev-page" style="padding: 5px 15px; margin-right: 10px;">← Prev</button>
+                <span id="page-info">Page 1</span>
+                <button id="next-page" style="padding: 5px 15px; margin-left: 10px;">Next →</button>
             </div>
         </main>
     </div>

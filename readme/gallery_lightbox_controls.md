@@ -21,4 +21,4 @@
 *   **Placement**: A subtle, fixed control panel in the bottom-right corner of the screen.
 *   **Behavior**: Low opacity (faded) by default to avoid distraction; brightens when hovered.
 *   **Function**: Allows users to instantly change the gallery layout (e.g., switch between 2, 3, or 4 columns) without reloading.
-*   **Style**: Retro aesthetics with button-style inputs.
+*   **Style***: Retro aesthetics with button-style inputs.

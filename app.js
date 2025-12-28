@@ -79,47 +79,162 @@ checkAuthStatus();
 
 // --- API Functions ---
 
-async function fetchTags(limit = 30) {
+async function fetchTags(limit = 30, ratings = ['safe']) {
     if (!sbClient) return { error: { message: "Supabase not configured" } };
+
+    // Fetch tags that appear in posts with allowed ratings
+    // This uses a subquery to filter tags based on associated post ratings
+    const { data: posts, error: postsError } = await sbClient
+        .from('webapp_booru_1_posts')
+        .select('tags:webapp_booru_1_tags(id, name, type)')
+        .in('rating', ratings);
+
+    if (postsError) return { data: null, error: postsError };
+
+    // Extract unique tags from posts
+    const tagMap = new Map();
+    posts.forEach(post => {
+        if (post.tags) {
+            post.tags.forEach(tag => {
+                if (!tagMap.has(tag.id)) {
+                    tagMap.set(tag.id, tag);
+                }
+            });
+        }
+    });
+
+    // Convert to array and limit
+    const uniqueTags = Array.from(tagMap.values()).slice(0, limit);
+
+    return { data: uniqueTags, error: null };
+}
+
+// Search tags for autocomplete
+async function searchTags(query, limit = 10) {
+    if (!sbClient || !query || query.length < 2) return { data: [], error: null };
 
     const { data, error } = await sbClient
         .from('webapp_booru_1_tags')
         .select('id, name, type')
+        .ilike('name', `${query}%`)
         .limit(limit);
 
-    return { data, error };
+    return { data: data || [], error };
 }
 
-async function fetchPosts(limit = 20, tagSearch = null, ratings = ['safe']) {
-    if (!sbClient) return { error: { message: "Supabase not configured" } };
+// --- Advanced Search Query Parser ---
 
-    let query;
+/**
+ * Parse advanced search query into components
+ * Syntax:
+ *   word        - Match title or tags
+ *   tag1 tag2   - Must have BOTH (AND)
+ *   -tag        - Exclude this tag (NOT)
+ *   ~tag1 ~tag2 - Either tag (OR)
+ *   tag*        - Wildcard (starts with)
+ */
+function parseSearchQuery(query) {
+    if (!query || !query.trim()) return null;
 
-    if (tagSearch) {
-        query = sbClient
-            .from('webapp_booru_1_posts')
-            .select(`
-                *,
-                tags:webapp_booru_1_tags!inner (name, type)
-            `)
-            .eq('webapp_booru_1_tags.name', tagSearch.toLowerCase())
-            .in('rating', ratings)
-            .order('created_at', { ascending: false })
-            .limit(limit);
-    } else {
-        query = sbClient
-            .from('webapp_booru_1_posts')
-            .select(`
-                *,
-                tags:webapp_booru_1_tags (name, type)
-            `)
-            .in('rating', ratings)
-            .order('created_at', { ascending: false })
-            .limit(limit);
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(t => t);
+
+    return {
+        // Normal terms (AND logic) - no prefix
+        andTerms: terms.filter(t => !t.startsWith('-') && !t.startsWith('~')),
+        // Excluded terms (NOT logic) - starts with -
+        notTerms: terms.filter(t => t.startsWith('-')).map(t => t.slice(1)).filter(t => t),
+        // Optional terms (OR logic) - starts with ~  
+        orTerms: terms.filter(t => t.startsWith('~')).map(t => t.slice(1)).filter(t => t)
+    };
+}
+
+/**
+ * Check if a term matches a value (supports wildcards)
+ */
+function termMatches(term, value) {
+    const isWildcard = term.endsWith('*');
+    if (isWildcard) {
+        const prefix = term.slice(0, -1);
+        return value.startsWith(prefix);
+    }
+    return value === term;
+}
+
+/**
+ * Filter posts based on parsed query
+ */
+function filterPosts(posts, parsedQuery) {
+    if (!parsedQuery) return posts;
+
+    return posts.filter(post => {
+        const tagNames = (post.tags || []).map(t => t.name.toLowerCase());
+        const sourceUrl = (post.source_url || '').toLowerCase();
+
+        // Check AND terms (all must match tag or title/source_url)
+        for (const term of parsedQuery.andTerms) {
+            const matchesTag = tagNames.some(tagName => termMatches(term, tagName));
+            const matchesSource = sourceUrl.includes(term.replace('*', ''));
+
+            if (!matchesTag && !matchesSource) return false;
+        }
+
+        // Check NOT terms (none should match tags)
+        for (const term of parsedQuery.notTerms) {
+            if (tagNames.some(tagName => termMatches(term, tagName))) return false;
+        }
+
+        // Check OR terms (at least one must match, if any OR terms exist)
+        if (parsedQuery.orTerms.length > 0) {
+            const hasMatch = parsedQuery.orTerms.some(term =>
+                tagNames.some(tagName => termMatches(term, tagName))
+            );
+            if (!hasMatch) return false;
+        }
+
+        return true;
+    });
+}
+
+// --- API Functions ---
+
+const POSTS_PER_PAGE = 50;
+
+async function fetchPosts(limit = POSTS_PER_PAGE, offset = 0, searchQuery = null, ratings = ['safe']) {
+    if (!sbClient) return { error: { message: "Supabase not configured" }, data: null, total: 0 };
+
+    // Parse the search query
+    const parsedQuery = parseSearchQuery(searchQuery);
+
+    // Build query
+    let query = sbClient
+        .from('webapp_booru_1_posts')
+        .select(`
+            *,
+            tags:webapp_booru_1_tags (name, type)
+        `, { count: 'exact' })
+        .in('rating', ratings)
+        .order('created_at', { ascending: false });
+
+    // If no search query, use server-side pagination
+    if (!parsedQuery) {
+        query = query.range(offset, offset + limit - 1);
     }
 
-    const { data, error } = await query;
-    return { data, error };
+    const { data, error, count } = await query;
+
+    if (error) return { data: null, error, total: 0 };
+
+    // Apply client-side filtering for advanced queries
+    let filteredData = filterPosts(data, parsedQuery);
+    let total = count || filteredData.length;
+
+    // Client-side pagination for filtered results
+    if (parsedQuery) {
+        total = filteredData.length;
+        filteredData = filteredData.slice(offset, offset + limit);
+    }
+
+    return { data: filteredData, error: null, total };
 }
 
 async function fetchPostById(id) {
@@ -274,7 +389,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Load tags for sidebar - tags use click handlers to capture current rating state
         async function loadTags() {
             if (!tagSidebar) return;
-            const { data: tags, error } = await fetchTags();
+            // Only show tags from safe-rated posts for non-admin users
+            const ratings = getSelectedRatings();
+            const { data: tags, error } = await fetchTags(30, ratings);
             if (error || !tags || tags.length === 0) {
                 tagSidebar.innerHTML = '<li>No tags yet</li>';
                 return;
@@ -319,6 +436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const newUrl = params.toString() ? `?${params.toString()}` : 'index.html';
             window.history.replaceState({ path: newUrl }, '', newUrl);
+            currentPage = 1; // Reset to page 1 on filter change
             loadPosts(tag || null);
         }
 
@@ -327,6 +445,83 @@ document.addEventListener('DOMContentLoaded', async () => {
                 el.addEventListener('change', updateUrl);
             }
         });
+
+        // Pagination state (moved outside searchInput block for scope access)
+        let currentPage = 1;
+        let totalPages = 1;
+        const prevBtn = document.getElementById('prev-page');
+        const nextBtn = document.getElementById('next-page');
+        const pageInfo = document.getElementById('page-info');
+
+        function updatePaginationUI() {
+            if (pageInfo) {
+                pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+            }
+            if (prevBtn) {
+                prevBtn.disabled = currentPage <= 1;
+                prevBtn.style.opacity = currentPage <= 1 ? '0.5' : '1';
+            }
+            if (nextBtn) {
+                nextBtn.disabled = currentPage >= totalPages;
+                nextBtn.style.opacity = currentPage >= totalPages ? '0.5' : '1';
+            }
+        }
+
+        function updateUrlWithPage() {
+            const tag = searchInput ? searchInput.value.trim() : null;
+            const ratings = getSelectedRatings();
+
+            const params = new URLSearchParams();
+            if (tag) params.set('tag', tag);
+            if (ratings.length > 0 && (!ratings.includes('safe') || ratings.length > 1)) {
+                params.set('rating', ratings.join(','));
+            }
+            if (currentPage > 1) params.set('page', currentPage);
+
+            const newUrl = params.toString() ? `?${params.toString()}` : 'index.html';
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+
+        // Pagination button handlers
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    updateUrlWithPage();
+                    loadPosts(searchInput ? searchInput.value : null);
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    updateUrlWithPage();
+                    loadPosts(searchInput ? searchInput.value : null);
+                }
+            });
+        }
+
+        async function loadPosts(tag = null) {
+            if (!grid) return;
+            grid.innerHTML = '<p style="text-align: center; width: 100%;">Loading...</p>';
+
+            const ratings = getSelectedRatings();
+            const offset = (currentPage - 1) * POSTS_PER_PAGE;
+            const { data, error, total } = await fetchPosts(POSTS_PER_PAGE, offset, tag, ratings);
+
+            if (error) {
+                console.error('Error fetching posts:', error);
+                grid.innerHTML = `<p class="error-message">Error loading posts: ${error.message}</p>`;
+            } else {
+                totalPages = Math.max(1, Math.ceil(total / POSTS_PER_PAGE));
+                updatePaginationUI();
+                renderPostGrid(data, grid);
+                // Scroll to top on page change
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
 
         // Search Handler
         if (searchInput) {
@@ -339,6 +534,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const params = getUrlParams();
             const tagParam = params.get('tag');
             const ratingParam = params.get('rating');
+            const pageParam = parseInt(params.get('page')) || 1;
+            currentPage = pageParam;
 
             // Apply rating filters from URL (only for admins)
             if (ratingParam && isAdmin()) {
@@ -358,26 +555,110 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initial load (now with correct rating state)
             loadPosts(tagParam || null);
 
+            // Autocomplete setup
+            const suggestionsEl = document.getElementById('search-suggestions');
+            let selectedIndex = -1;
+            let debounceTimer = null;
+
+            // Helper to get the last word being typed (for multi-tag support)
+            function getLastWord(text) {
+                const words = text.split(/\s+/);
+                return words[words.length - 1] || '';
+            }
+
+            // Helper to replace only the last word with selected tag
+            function replaceLastWord(text, newWord) {
+                const words = text.split(/\s+/);
+                words[words.length - 1] = newWord;
+                return words.join(' ');
+            }
+
+            async function showSuggestions(fullQuery) {
+                if (!suggestionsEl) return;
+
+                const lastWord = getLastWord(fullQuery);
+                if (!lastWord || lastWord.length < 2) {
+                    suggestionsEl.classList.remove('active');
+                    return;
+                }
+
+                const { data: tags } = await searchTags(lastWord, 10);
+                if (!tags || tags.length === 0) {
+                    suggestionsEl.classList.remove('active');
+                    return;
+                }
+
+                suggestionsEl.innerHTML = tags.map((tag, i) =>
+                    `<li data-tag="${tag.name}" class="${i === selectedIndex ? 'selected' : ''}">${tag.name}</li>`
+                ).join('');
+                suggestionsEl.classList.add('active');
+                selectedIndex = -1;
+            }
+
+            function selectSuggestion(tagName) {
+                // Replace only the last word with selected tag, keep previous tags
+                const currentValue = searchInput.value;
+                searchInput.value = replaceLastWord(currentValue, tagName) + ' ';
+                suggestionsEl.classList.remove('active');
+                searchInput.focus();
+            }
+
+            // Input event for autocomplete with debounce
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    showSuggestions(e.target.value.trim());
+                }, 200);
+            });
+
+            // Click on suggestion
+            if (suggestionsEl) {
+                suggestionsEl.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'LI') {
+                        selectSuggestion(e.target.dataset.tag);
+                    }
+                });
+            }
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (!suggestionsEl || !suggestionsEl.classList.contains('active')) return;
+
+                const items = suggestionsEl.querySelectorAll('li');
+                if (items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                    e.preventDefault();
+                    selectSuggestion(items[selectedIndex].dataset.tag);
+                    return;
+                } else if (e.key === 'Escape') {
+                    suggestionsEl.classList.remove('active');
+                    selectedIndex = -1;
+                }
+            });
+
+            // Hide suggestions on blur (with delay for click)
+            searchInput.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (suggestionsEl) suggestionsEl.classList.remove('active');
+                }, 150);
+            });
+
             searchInput.addEventListener('keypress', async (e) => {
                 if (e.key === 'Enter') {
+                    if (suggestionsEl) suggestionsEl.classList.remove('active');
+                    currentPage = 1; // Reset to page 1 on new search
                     updateUrl();
                 }
             });
-        }
-
-        async function loadPosts(tag = null) {
-            if (!grid) return;
-            grid.innerHTML = '<p style="text-align: center; width: 100%;">Loading...</p>';
-
-            const ratings = getSelectedRatings();
-            const { data, error } = await fetchPosts(20, tag, ratings);
-
-            if (error) {
-                console.error('Error fetching posts:', error);
-                grid.innerHTML = `<p class="error-message">Error loading posts: ${error.message}</p>`;
-            } else {
-                renderPostGrid(data, grid);
-            }
         }
     }
 });
