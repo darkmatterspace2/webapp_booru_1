@@ -244,21 +244,28 @@ ul {
   margin-bottom: 2px;
 }
 
-/* ===== GALLERY WITH VARIABLE COLUMNS ===== */
+/* ===== GALLERY WITH VARIABLE COLUMNS (MASONRY) ===== */
 .thumb-grid {
   --gallery-cols: 4;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
+  column-count: var(--gallery-cols);
+  column-gap: 0;
+  display: block;
+  /* Required for column-count */
 }
 
 .post-thumb {
-  width: calc(100% / var(--gallery-cols));
+  width: 100%;
   box-sizing: border-box;
   position: relative;
   cursor: pointer;
   overflow: hidden;
+  break-inside: avoid;
+  /* Prevents item from splitting across columns */
+  margin-bottom: 0;
+  display: block;
+  /* Ensures proper stacking */
 }
+
 
 .post-thumb img,
 .post-thumb video {
