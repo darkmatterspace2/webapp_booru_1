@@ -109,6 +109,19 @@ async function fetchTags(limit = 30, ratings = ['safe']) {
     return { data: uniqueTags, error: null };
 }
 
+// Search tags for autocomplete
+async function searchTags(query, limit = 10) {
+    if (!sbClient || !query || query.length < 2) return { data: [], error: null };
+
+    const { data, error } = await sbClient
+        .from('webapp_booru_1_tags')
+        .select('id, name, type')
+        .ilike('name', `${query}%`)
+        .limit(limit);
+
+    return { data: data || [], error };
+}
+
 // --- Advanced Search Query Parser ---
 
 /**
@@ -542,8 +555,106 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Initial load (now with correct rating state)
             loadPosts(tagParam || null);
 
+            // Autocomplete setup
+            const suggestionsEl = document.getElementById('search-suggestions');
+            let selectedIndex = -1;
+            let debounceTimer = null;
+
+            // Helper to get the last word being typed (for multi-tag support)
+            function getLastWord(text) {
+                const words = text.split(/\s+/);
+                return words[words.length - 1] || '';
+            }
+
+            // Helper to replace only the last word with selected tag
+            function replaceLastWord(text, newWord) {
+                const words = text.split(/\s+/);
+                words[words.length - 1] = newWord;
+                return words.join(' ');
+            }
+
+            async function showSuggestions(fullQuery) {
+                if (!suggestionsEl) return;
+
+                const lastWord = getLastWord(fullQuery);
+                if (!lastWord || lastWord.length < 2) {
+                    suggestionsEl.classList.remove('active');
+                    return;
+                }
+
+                const { data: tags } = await searchTags(lastWord, 10);
+                if (!tags || tags.length === 0) {
+                    suggestionsEl.classList.remove('active');
+                    return;
+                }
+
+                suggestionsEl.innerHTML = tags.map((tag, i) =>
+                    `<li data-tag="${tag.name}" class="${i === selectedIndex ? 'selected' : ''}">${tag.name}</li>`
+                ).join('');
+                suggestionsEl.classList.add('active');
+                selectedIndex = -1;
+            }
+
+            function selectSuggestion(tagName) {
+                // Replace only the last word with selected tag, keep previous tags
+                const currentValue = searchInput.value;
+                searchInput.value = replaceLastWord(currentValue, tagName) + ' ';
+                suggestionsEl.classList.remove('active');
+                searchInput.focus();
+            }
+
+            // Input event for autocomplete with debounce
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    showSuggestions(e.target.value.trim());
+                }, 200);
+            });
+
+            // Click on suggestion
+            if (suggestionsEl) {
+                suggestionsEl.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'LI') {
+                        selectSuggestion(e.target.dataset.tag);
+                    }
+                });
+            }
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (!suggestionsEl || !suggestionsEl.classList.contains('active')) return;
+
+                const items = suggestionsEl.querySelectorAll('li');
+                if (items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    items.forEach((li, i) => li.classList.toggle('selected', i === selectedIndex));
+                } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                    e.preventDefault();
+                    selectSuggestion(items[selectedIndex].dataset.tag);
+                    return;
+                } else if (e.key === 'Escape') {
+                    suggestionsEl.classList.remove('active');
+                    selectedIndex = -1;
+                }
+            });
+
+            // Hide suggestions on blur (with delay for click)
+            searchInput.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (suggestionsEl) suggestionsEl.classList.remove('active');
+                }, 150);
+            });
+
             searchInput.addEventListener('keypress', async (e) => {
                 if (e.key === 'Enter') {
+                    if (suggestionsEl) suggestionsEl.classList.remove('active');
                     currentPage = 1; // Reset to page 1 on new search
                     updateUrl();
                 }
