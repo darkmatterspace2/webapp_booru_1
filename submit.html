@@ -187,7 +187,19 @@ https://example.com/video.mp4"></textarea>
                 const source_url = formData.get('source_url');
                 const rating = formData.get('rating');
                 const tagString = formData.get('tags');
-                const tagNames = tagString.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+
+                // Sanitize tags: trim, lowercase, spaces to underscores, strip special chars
+                function sanitizeTag(tag) {
+                    return tag
+                        .trim()
+                        .toLowerCase()
+                        .replace(/\s+/g, '_')
+                        .replace(/[^a-z0-9_-]/g, '');
+                }
+
+                const tagNames = tagString.split(',')
+                    .map(t => sanitizeTag(t))
+                    .filter(t => t.length > 0);
 
                 const isBulkMode = bulkModeCheckbox.checked;
 
